@@ -25,13 +25,27 @@
     </p>
 
     <div class="row">
+        <div class="col-4 offset-4">
+            <h2>🖥️ Screen details</h2>
+            <div class="input-group mb-3">
+                <span class="input-group-text" id="screen-details-width">↕️</span>
+                <input type="text" class="form-control" id="input-screen-width" aria-label="Screen width" aria-describedby="screen-details-width">
+                <span class="input-group-text" id="screen-details-height">↔️️</span>
+                <input type="text" class="form-control" id="input-screen-height" aria-label="Screen height" aria-describedby="screen-details-height">
+            </div>
+        </div>
+    </div>
+
+
+    <div class="row">
         <div class="col-6 offset-3">
-            <h2>Resize scale</h2>
+            <h2>📏 Resize scale</h2>
             <div class="text-center" role="group">
                 <button type="button" class="btn btn-primary js-resize-button" data-option="25">25%</button>
                 <button type="button" class="btn btn-primary js-resize-button" data-option="50">50%</button>
                 <button type="button" class="btn btn-primary js-resize-button" data-option="75">75%</button>
                 <button type="button" class="btn btn-primary js-resize-button" data-option="90">90%</button>
+                <input type="checkbox" id="resize-copy-clipboard" aria-label="Select if the application should copy to the clipboard a resized image when pasting.">
             </div>
 
             <br>
@@ -46,7 +60,7 @@
 
     <div class="row">
         <div class="col-8 offset-2">
-            <canvas id="canvas-preview" style="border:1px solid black;"></canvas>
+            <canvas id="canvas-preview" style="border:1px solid black; width: 100%"></canvas>
         </div>
     </div>
 
@@ -57,157 +71,6 @@
 </div>
 
 <!--<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>-->
-<script>
-	( () => {
-		'use strict';
-
-		/**
-		 * The `Set` collection on steroids emits events when a new item is being added or removed.
-		 *
-		 * @extends {Set}
-		 */
-		class ObservableSet extends Set {
-			constructor( items ) {
-				super( items );
-
-				this._events = new Map( [
-					[ 'add', new Set() ],
-					[ 'delete', new Set() ]
-				] );
-			}
-
-			/**
-			 * @fires add
-			 * @param {*} item
-			 */
-			add( item ) {
-				super.add( item );
-				this._fireEvent( 'add', item );
-			}
-
-			/**
-			 * @fires delete
-			 * @param {*} item
-			 */
-			delete( item ) {
-				super.delete( item );
-				this._fireEvent( 'delete', item );
-			}
-
-			/**
-			 * @param {String} eventName
-			 * @param {Function} callback
-			 * @returns {Function} A callback that removes an added listener.
-			 */
-			listenTo( eventName, callback ) {
-				const fn = ( ...data ) => {
-					return callback( ...data );
-				};
-
-				const collection = this._events.get( eventName );
-				collection.add( fn );
-
-				return () => {
-					collection.delete( fn );
-				}
-			}
-
-			/**
-			 * @private
-			 * @param {String} eventName
-			 * @param {Array} data
-			 */
-			_fireEvent( eventName, ...data ) {
-				for ( const callback of this._events.get( eventName ) ) {
-					callback( { eventName }, ...data );
-				}
-			}
-		}
-
-		const previewElement = document.getElementById( 'canvas-preview' );
-		const progressBar = document.getElementById( 'progress-bar' );
-		const gallery = document.getElementById( 'gallery' );
-
-		// Canvas requires the `[width]` and `[height]` attributes to set to scale its content properly.
-		previewElement.width = pxToNumber( getComputedStyle( previewElement.parentElement ).width );
-		previewElement.height = previewElement.width * ( screen.height / screen.width );
-
-		const context = previewElement.getContext( '2d' );
-
-		const pastedImages = new ObservableSet();
-
-		pastedImages.listenTo( 'add', ( event, item ) => {
-			const div = document.createElement( 'div' );
-			div.classList.add( 'gallery-item' );
-			div.style.backgroundImage = `url(${ item.src })`;
-
-			gallery.appendChild( div );
-		} );
-
-		// Make an observable from the value.
-		let resizeValue = 75;
-
-		[ ...document.querySelectorAll( '.js-resize-button' ) ].forEach( element => {
-			element.addEventListener( 'click', () => {
-				resizeValue = pxToNumber( element.getAttribute( 'data-option' ) );
-
-				progressBar.innerText = resizeValue + '%';
-				progressBar.style.width = progressBar.innerText;
-			} )
-		} );
-
-		window.addEventListener( 'paste', ( event ) => {
-			const content = [ ...event.clipboardData.items ]
-				.filter( item => item.kind === 'file' )
-				.shift();
-
-			if ( !content ) {
-				return;
-			}
-
-			const uploadedFile = content.getAsFile();
-
-			if ( !isImage( uploadedFile ) ) {
-				return;
-			}
-
-			const reader = new FileReader();
-			const image = new Image();
-
-			reader.addEventListener( 'load', () => {
-				image.src = reader.result;
-			} );
-
-			image.addEventListener( 'load', async () => {
-				context.clearRect( 0, 0, previewElement.width, previewElement.height );
-				context.scale( resizeValue / 100, resizeValue / 100 );
-				context.drawImage( image, 0, 0 );
-
-				const clipboardItem = new ClipboardItem( {
-					'image/png': new Promise( resolve => previewElement.toBlob( resolve ) )
-				} );
-
-				await navigator.clipboard.write( [ clipboardItem ] );
-				context.resetTransform();
-
-				pastedImages.add( image );
-			} );
-
-			reader.readAsDataURL( uploadedFile )
-		} );
-
-		function isImage( file ) {
-			if ( !file ) {
-				return false;
-			}
-
-			return file.type === 'image/png' || file.type === 'image/jpeg';
-		}
-
-		function pxToNumber( value ) {
-			return Number( value.replace( 'px', '' ) );
-		}
-	} )();
-</script>
+<script src="./build/script.js"></script>
 </body>
 </html>
