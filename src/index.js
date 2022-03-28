@@ -80,8 +80,17 @@ window.addEventListener( 'paste', ( event ) => {
 	} );
 
 	image.addEventListener( 'load', async () => {
+		const scale = resizeValue / 100;
+		const newCanvas = document.createElement('canvas');
+		const newContext = newCanvas.getContext( '2d' );
+
+		newCanvas.width = image.width * scale;
+		newCanvas.height = image.height * scale;
+
+		newContext.scale( resizeValue / 100, resizeValue / 100 );
+		newContext.drawImage( image, 0, 0 );
+
 		context.clearRect( 0, 0, previewElement.width, previewElement.height );
-		context.scale( resizeValue / 100, resizeValue / 100 );
 		context.drawImage( image, 0, 0 );
 
 		if ( copyClipboardInput.value ) {
@@ -89,10 +98,11 @@ window.addEventListener( 'paste', ( event ) => {
 		}
 
 		const clipboardItem = new ClipboardItem( {
-			'image/png': new Promise( resolve => previewElement.toBlob( resolve ) )
+			'image/png': new Promise( resolve => newCanvas.toBlob( resolve ) )
 		} );
 
 		await navigator.clipboard.write( [ clipboardItem ] );
+
 		context.resetTransform();
 
 		pastedImages.add( image );
