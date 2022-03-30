@@ -2,6 +2,8 @@ import ObservableSet from './observable/observableset';
 import ObservableInput from './observable/observableinput';
 import ObservableCheckbox from './observable/observablecheckbox';
 
+import '../template/theme/style.css';
+
 const previewElement = document.getElementById( 'canvas-preview' );
 const progressBar = document.getElementById( 'progress-bar' );
 const gallery = document.getElementById( 'gallery' );
@@ -72,6 +74,8 @@ window.addEventListener( 'paste', ( event ) => {
 		return;
 	}
 
+	previewElement.classList.add( 'paste-preview--with-screenshot' );
+
 	const reader = new FileReader();
 	const image = new Image();
 
@@ -81,7 +85,7 @@ window.addEventListener( 'paste', ( event ) => {
 
 	image.addEventListener( 'load', async () => {
 		const scale = resizeValue / 100;
-		const newCanvas = document.createElement('canvas');
+		const newCanvas = document.createElement( 'canvas' );
 		const newContext = newCanvas.getContext( '2d' );
 
 		newCanvas.width = image.width * scale;

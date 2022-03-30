@@ -26,5 +26,18 @@ module.exports = {
 		new HtmlWebpackPlugin( {
 			template: path.join( __dirname, 'template', 'index.hbs' )
 		} )
-	]
-};
+	],
+
+	module: {
+		rules: [
+			{
+				test: /\.css$/i,
+				use: [
+					'style-loader',
+					'css-loader'
+				],
+			},
+		],
+	},
+}
+;
