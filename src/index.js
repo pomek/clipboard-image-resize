@@ -5,7 +5,6 @@ import drawImage from './utils/drawimage';
 
 import trashIcon from 'bootstrap-icons/icons/trash3-fill.svg';
 import '../template/theme/style.css';
-import debounce from './utils/debounce';
 import throttle from './utils/throttle';
 
 const loaderElement = document.getElementById( 'loader' );
@@ -43,6 +42,7 @@ activeImage.on( 'change', async ( event, { newValue } ) => {
 	}
 } );
 
+// Display or hide the loader.
 loader.on( 'change', async ( event, { newValue } ) => {
 	if ( newValue ) {
 		loaderElement.classList.add( 'loader--enabled' )
@@ -74,7 +74,7 @@ resizeScale.on( 'change', async () => {
 } );
 
 // Attach event when pasting content to the window.
-window.addEventListener( 'paste', throttle( ( event ) => {
+window.addEventListener( 'paste', throttle( event => {
 	if ( loader.value ) {
 		return;
 	}
