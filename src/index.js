@@ -5,13 +5,17 @@ import drawImage from './utils/drawimage';
 
 import trashIcon from 'bootstrap-icons/icons/trash3-fill.svg';
 import '../template/theme/style.css';
+import debounce from './utils/debounce';
+import throttle from './utils/throttle';
 
+const loaderElement = document.getElementById( 'loader' );
 const previewElement = document.getElementById( 'canvas-preview' );
 const galleryElement = document.getElementById( 'recent-uploads' );
 const galleryTemplate = document.getElementById( 'template-gallery-tile' );
 const context = previewElement.getContext( '2d' );
 const resizeScale = new Observable( 75 );
 const activeImage = new Observable( null );
+const loader = new Observable( false );
 const screenWidthInput = new ObservableInput( document.getElementById( 'input-screen-width' ), { defaultValue: screen.width } );
 const screenHeightInput = new ObservableInput( document.getElementById( 'input-screen-height' ), { defaultValue: screen.height } );
 
@@ -39,6 +43,14 @@ activeImage.on( 'change', async ( event, { newValue } ) => {
 	}
 } );
 
+loader.on( 'change', async ( event, { newValue } ) => {
+	if ( newValue ) {
+		loaderElement.classList.add( 'loader--enabled' )
+	} else {
+		loaderElement.classList.remove( 'loader--enabled' )
+	}
+} );
+
 // Update the view when changed the output scale.
 resizeScale.on( 'change', ( event, { newValue } ) => {
 	document.querySelector( '.js-resize-button.active' ).classList.remove( 'active' );
@@ -62,7 +74,11 @@ resizeScale.on( 'change', async () => {
 } );
 
 // Attach event when pasting content to the window.
-window.addEventListener( 'paste', ( event ) => {
+window.addEventListener( 'paste', throttle( ( event ) => {
+	if ( loader.value ) {
+		return;
+	}
+
 	const content = [ ...event.clipboardData.items ]
 		.filter( item => item.kind === 'file' )
 		.shift();
@@ -70,6 +86,8 @@ window.addEventListener( 'paste', ( event ) => {
 	if ( !content ) {
 		return;
 	}
+
+	loader.set( true );
 
 	const uploadedFile = content.getAsFile();
 
@@ -87,10 +105,11 @@ window.addEventListener( 'paste', ( event ) => {
 	image.addEventListener( 'load', async () => {
 		activeImage.set( image );
 		createGalleryItem( image );
+		loader.set( false );
 	} );
 
 	reader.readAsDataURL( uploadedFile )
-} );
+}, 100 ) );
 
 /**
  * Returns true if the given file is an image (PNG or JPG).

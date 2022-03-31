@@ -1,3 +1,9 @@
+/**
+ * Draws the given image on the specified context. When passing `null` as image, the context is cleared.
+ *
+ * @param {CanvasRenderingContext2D} context
+ * @param {HTMLImageElement|null} [image=null]
+ */
 export default function drawImage( context, image = null ) {
 	const { canvas } = context;
 

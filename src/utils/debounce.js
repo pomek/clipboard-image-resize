@@ -6,16 +6,14 @@
 export default function debounce( callback, time ) {
 	let timeout;
 
-	return function ( ...args ) {
-		const context = this;
-
+	return function () {
 		if ( timeout ) {
 			clearTimeout( timeout );
 		}
 
 		const fn = () => {
 			timeout = null;
-			callback.apply( context, args )
+			callback.apply( this, arguments )
 		};
 
 		timeout = setTimeout( fn, time )
