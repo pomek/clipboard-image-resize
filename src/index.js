@@ -1,27 +1,21 @@
-import ObservableSet from './observable/observableset';
 import ObservableInput from './observable/observableinput';
-import ObservableCheckbox from './observable/observablecheckbox';
+import Observable from './observable/observable';
+import copyImage from './utils/copyimage';
+import drawImage from './utils/drawimage';
 
+import trashIcon from 'bootstrap-icons/icons/trash3-fill.svg';
 import '../template/theme/style.css';
 
 const previewElement = document.getElementById( 'canvas-preview' );
-const progressBar = document.getElementById( 'progress-bar' );
-const gallery = document.getElementById( 'gallery' );
-
+const galleryElement = document.getElementById( 'recent-uploads' );
+const galleryTemplate = document.getElementById( 'template-gallery-tile' );
 const context = previewElement.getContext( '2d' );
+const resizeScale = new Observable( 75 );
+const activeImage = new Observable( null );
+const screenWidthInput = new ObservableInput( document.getElementById( 'input-screen-width' ), { defaultValue: screen.width } );
+const screenHeightInput = new ObservableInput( document.getElementById( 'input-screen-height' ), { defaultValue: screen.height } );
 
-const pastedImages = new ObservableSet();
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Canvas requires the `[width]` and `[height]` attributes to set to scale its content properly.
-const screenWidthInput = new ObservableInput( document.getElementById( 'input-screen-width' ), {
-	defaultValue: screen.width
-} );
-
-const screenHeightInput = new ObservableInput( document.getElementById( 'input-screen-height' ), {
-	defaultValue: screen.height
-} );
-
+// React to changes in the screen size.
 screenWidthInput.on( 'change', () => {
 	previewElement.width = screenWidthInput.value;
 } );
@@ -32,33 +26,42 @@ screenHeightInput.on( 'change', () => {
 
 screenWidthInput.attach();
 screenHeightInput.attach();
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const copyClipboardInput = new ObservableCheckbox( document.getElementById( 'resize-copy-clipboard' ), {
-	defaultValue: true
-} );
-copyClipboardInput.attach();
+// Draw or clear the canvas when set the active image.
+activeImage.on( 'change', async ( event, { newValue } ) => {
+	drawImage( context, newValue );
 
-pastedImages.on( 'add', ( event, item ) => {
-	const div = document.createElement( 'div' );
-	div.classList.add( 'gallery-item' );
-	div.style.backgroundImage = `url(${ item.src })`;
-
-	gallery.appendChild( div );
+	if ( newValue ) {
+		previewElement.classList.add( 'paste-preview--with-screenshot' );
+		await copyImage( newValue, resizeScale );
+	} else {
+		previewElement.classList.remove( 'paste-preview--with-screenshot' );
+	}
 } );
 
-// Make an observable from the value.
-let resizeValue = 75;
+// Update the view when changed the output scale.
+resizeScale.on( 'change', ( event, { newValue } ) => {
+	document.querySelector( '.js-resize-button.active' ).classList.remove( 'active' );
+	document.querySelector( `.js-resize-button[data-resize-value="${ newValue }"]` ).classList.add( 'active' );
+} );
 
+// Copy an image when changed the output scale while showing it.
+resizeScale.on( 'change', async () => {
+	const image = activeImage.value;
+
+	if ( image ) {
+		await copyImage( image, resizeScale );
+	}
+} );
+
+// Attach events for button with resize scale.
 [ ...document.querySelectorAll( '.js-resize-button' ) ].forEach( element => {
 	element.addEventListener( 'click', () => {
-		resizeValue = pxToNumber( element.getAttribute( 'data-option' ) );
-
-		progressBar.innerText = resizeValue + '%';
-		progressBar.style.width = progressBar.innerText;
+		resizeScale.set( Number( element.dataset.resizeValue ) );
 	} )
 } );
 
+// Attach event when pasting content to the window.
 window.addEventListener( 'paste', ( event ) => {
 	const content = [ ...event.clipboardData.items ]
 		.filter( item => item.kind === 'file' )
@@ -74,47 +77,27 @@ window.addEventListener( 'paste', ( event ) => {
 		return;
 	}
 
-	previewElement.classList.add( 'paste-preview--with-screenshot' );
-
-	const reader = new FileReader();
 	const image = new Image();
+	const reader = new FileReader();
 
 	reader.addEventListener( 'load', () => {
 		image.src = reader.result;
 	} );
 
 	image.addEventListener( 'load', async () => {
-		const scale = resizeValue / 100;
-		const newCanvas = document.createElement( 'canvas' );
-		const newContext = newCanvas.getContext( '2d' );
-
-		newCanvas.width = image.width * scale;
-		newCanvas.height = image.height * scale;
-
-		newContext.scale( resizeValue / 100, resizeValue / 100 );
-		newContext.drawImage( image, 0, 0 );
-
-		context.clearRect( 0, 0, previewElement.width, previewElement.height );
-		context.drawImage( image, 0, 0 );
-
-		if ( copyClipboardInput.value ) {
-			console.log( 'Auto-copy enabled.' );
-		}
-
-		const clipboardItem = new ClipboardItem( {
-			'image/png': new Promise( resolve => newCanvas.toBlob( resolve ) )
-		} );
-
-		await navigator.clipboard.write( [ clipboardItem ] );
-
-		context.resetTransform();
-
-		pastedImages.add( image );
+		activeImage.set( image );
+		createGalleryItem( image );
 	} );
 
 	reader.readAsDataURL( uploadedFile )
 } );
 
+/**
+ * Returns true if the given file is an image (PNG or JPG).
+ *
+ * @param {File} file
+ * @returns {Boolean}
+ */
 function isImage( file ) {
 	if ( !file ) {
 		return false;
@@ -123,6 +106,42 @@ function isImage( file ) {
 	return file.type === 'image/png' || file.type === 'image/jpeg';
 }
 
-function pxToNumber( value ) {
-	return Number( value.replace( 'px', '' ) );
+/**
+ * Creates a new tile that represents the uploaded image in the gallery.
+ *
+ * @param {HTMLImageElement} image
+ */
+function createGalleryItem( image ) {
+	const id = 'u' + crypto.randomUUID();
+	const galleryContent = galleryTemplate.content.cloneNode( true );
+	const galleryTile = galleryContent.querySelector( '.js-gallery-tile' );
+	const galleryRemove = galleryTile.querySelector( '.js-gallery-remove' );
+	const galleryPreview = galleryTile.querySelector( '.js-gallery-preview' );
+
+	galleryTile.id = id;
+
+	const onPreviewClick = () => {
+		activeImage.set( image );
+	};
+
+	const onRemoveClick = () => {
+		if ( activeImage.value === image ) {
+			activeImage.set( null );
+		}
+
+		galleryRemove.removeEventListener( 'click', onRemoveClick );
+		galleryPreview.removeEventListener( 'click', onPreviewClick );
+
+		// `galleryContent` is a document fragment so it can't be removed directly.
+		// Hence, we generate a unique identifier that allows finding the gallery tile when requesting removal.
+		document.getElementById( id ).remove();
+	};
+
+	galleryRemove.style.backgroundImage = `url(${ trashIcon })`;
+	galleryPreview.style.backgroundImage = `url(${ image.src })`;
+
+	galleryPreview.addEventListener( 'click', onPreviewClick );
+	galleryRemove.addEventListener( 'click', onRemoveClick );
+
+	galleryElement.prepend( galleryTile );
 }

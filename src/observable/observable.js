@@ -8,11 +8,11 @@ import mix from '../utils/mix'
  * @extends {Set}
  */
 export default class Observable {
-	constructor( value ) {
+	constructor( value = null ) {
 		this._value = value;
 	}
 
-	get() {
+	get value() {
 		return this._value;
 	}
 
@@ -21,7 +21,7 @@ export default class Observable {
 			return;
 		}
 
-		const oldValue = this.get();
+		const oldValue = this.value;
 
 		this._value = value;
 

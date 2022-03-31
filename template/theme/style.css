@@ -1,12 +1,48 @@
 
+.gallery {
+    height: calc(75vh);
+    overflow-y: scroll;
+}
 
-.gallery .gallery-item {
-    display: inline-block;
+.gallery .gallery-tile {
+    border-radius: 5px;
+    border: 1px solid #000;
+    position: relative;
+    margin: 0 auto 10px;
+    width: 150px;
+    overflow: hidden;
+}
+
+.gallery .gallery-tile:hover .gallery-remove {
+    display: block;
+}
+
+.gallery .gallery-remove {
+    background-color: #fff;
+    border-radius: 5px;
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 0;
+    cursor: pointer;
+    opacity: 0.5;
+    width: 30px;
+    height: 30px;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.gallery .gallery-remove:hover {
+    opacity: 1;
+}
+
+.gallery .gallery-preview {
+    background-size: 100%;
     width: 150px;
     height: 150px;
     background-position: center;
     background-repeat: no-repeat;
-    background-size: 50%;
+    cursor: pointer;
 }
 
 .paste-preview {

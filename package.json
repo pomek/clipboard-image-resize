@@ -15,5 +15,8 @@
     "start": "webpack serve --mode development --open",
     "build": "webpack --mode production",
     "gh-pages-deploy": "node scripts/gh-pages-deploy.js"
+  },
+  "dependencies": {
+    "bootstrap-icons": "^1.8.1"
   }
 }
