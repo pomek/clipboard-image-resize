@@ -1,7 +1,6 @@
-
 .gallery {
     height: calc(75vh);
-    overflow-y: scroll;
+    overflow-y: auto;
 }
 
 .gallery .gallery-tile {
@@ -61,11 +60,11 @@
 }
 
 .loader {
-    background-color: rgba(0,0,0, 0.5);
+    background-color: rgba(0, 0, 0, 0.5);
     position: absolute;
-width:100vw;
-    height:100vh;
-    z-index:100;
+    width: 100vw;
+    height: 100vh;
+    z-index: 100;
     display: none;
 }
 
@@ -74,8 +73,8 @@ width:100vw;
 }
 
 .loader .loader-icon {
-    border: 16px solid #f3f3f3; /* Light grey */
-    border-top: 16px solid #3498db; /* Blue */
+    border: 16px solid #f3f3f3;
+    border-top: 16px solid #3498db;
     border-radius: 50%;
     width: 120px;
     height: 120px;
@@ -88,6 +87,10 @@ width:100vw;
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
 }

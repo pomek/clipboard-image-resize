@@ -2,10 +2,12 @@ import ObservableInput from './observable/observableinput';
 import Observable from './observable/observable';
 import copyImage from './utils/copyimage';
 import drawImage from './utils/drawimage';
+import throttle from './utils/throttle';
 
 import trashIcon from 'bootstrap-icons/icons/trash3-fill.svg';
+import 'bootstrap/dist/css/bootstrap-grid.css';
+import '@forevolve/bootstrap-dark/dist/css/bootstrap-dark.css';
 import '../template/theme/style.css';
-import throttle from './utils/throttle';
 
 const loaderElement = document.getElementById( 'loader' );
 const previewElement = document.getElementById( 'canvas-preview' );
