@@ -2,6 +2,7 @@
   "name": "@pomek/clipboard-image-resize",
   "version": "0.0.1",
   "private": true,
+  "packageManager": "pnpm@10.32.1",
   "dependencies": {
     "@forevolve/bootstrap-dark": "^2.1.0",
     "bootstrap": "^5.1.3",
