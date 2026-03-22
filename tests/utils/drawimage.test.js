@@ -27,6 +27,6 @@ describe( 'drawImage', () => {
 		drawImage( context, image );
 
 		expect( context.clearRect ).toHaveBeenCalledWith( 0, 0, 300, 150 );
-		expect( context.drawImage ).toHaveBeenCalledWith( image, 0, 0 );
+		expect( context.drawImage ).toHaveBeenCalledWith( image, 0, 0, 300, 150 );
 	} );
 } );

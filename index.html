@@ -5,63 +5,139 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<meta http-equiv="X-UA-Compatible" content="ie=edge">
 	<title>Clipboard Image Resize</title>
+	<script>
+		( () => {
+			const storageKey = 'clipboard-image-resize:theme-preference';
+			let preference = 'auto';
+
+			try {
+				const storedPreference = window.localStorage.getItem( storageKey );
+
+				if ( [ 'light', 'dark', 'auto' ].includes( storedPreference ) ) {
+					preference = storedPreference;
+				}
+			} catch ( error ) {
+				preference = 'auto';
+			}
+
+			const prefersDark = window.matchMedia && window.matchMedia( '(prefers-color-scheme: dark)' ).matches;
+			const resolvedTheme = preference === 'auto' ? ( prefersDark ? 'dark' : 'light' ) : preference;
+
+			document.documentElement.dataset.themePreference = preference;
+			document.documentElement.dataset.theme = resolvedTheme;
+		} )();
+	</script>
 </head>
 <body>
-	<div id="loader" class="loader">
-		<div class="loader-icon"></div>
-	</div>
-	<div class="container-xxl">
-		<h1 class="text-center">Clipboard Image Resize</h1>
+	<div class="page-shell">
+		<div class="page-shell__glow page-shell__glow--left"></div>
+		<div class="page-shell__glow page-shell__glow--right"></div>
 
-		<p class="lead text-center">
-			Adjust the output scale and paste an image from the clipboard. The resized image is copied back.
-		</p>
-
-		<div class="row">
-			<div class="col-10">
-				<div class="row">
-					<div class="col-4 offset-1">
-						<h2>🖥️ Screen details</h2>
-						<div class="input-group mb-3">
-							<span class="input-group-text" id="screen-details-width">↔️️</span>
-							<input type="text" class="form-control" id="input-screen-width" aria-label="Screen width"
-								aria-describedby="screen-details-width">
-							<span class="input-group-text" id="screen-details-height">↕️</span>
-							<input type="text" class="form-control" id="input-screen-height" aria-label="Screen height"
-								aria-describedby="screen-details-height">
-						</div>
-					</div>
-
-					<div class="col-4">
-						<h2>📏 Scale</h2>
-						<div role="group" class="btn-group">
-							<button type="button" class="btn btn-outline-secondary js-resize-button" data-resize-value="25">25%</button>
-							<button type="button" class="btn btn-outline-secondary js-resize-button" data-resize-value="50">50%</button>
-							<button type="button" class="btn btn-outline-secondary js-resize-button active" data-resize-value="75">75%</button>
-							<button type="button" class="btn btn-outline-secondary js-resize-button" data-resize-value="100">100%</button>
-						</div>
-					</div>
-				</div>
-
-				<div class="row">
-					<div class="col-10 offset-1">
-						<canvas id="canvas-preview" class="paste-preview"></canvas>
-					</div>
-				</div>
-			</div>
-			<div class="col-2">
-				<h2>📁️ Files</h2>
-
-				<div id="recent-uploads" class="gallery"></div>
+		<div id="loader" class="loader" aria-hidden="true">
+			<div class="loader__panel">
+				<div class="loader-icon"></div>
+				<p>Processing the screenshot...</p>
 			</div>
 		</div>
+
+		<main class="app-shell">
+			<header class="hero">
+				<div class="hero__copy">
+					<p class="eyebrow">Clipboard studio</p>
+					<h1>Resize screenshots without leaving the browser.</h1>
+					<p class="hero__lede">
+						Paste a screenshot, tune the scale, and keep a cleaner copy ready for your next paste.
+					</p>
+				</div>
+				<div class="hero__badges">
+					<p class="status-pill" id="theme-status">Theme follows your system appearance.</p>
+					<p class="status-pill status-pill--accent" id="clipboard-status">Paste a PNG or JPEG screenshot to begin.</p>
+				</div>
+			</header>
+
+			<section class="control-grid" aria-label="Controls">
+				<section class="panel panel--tight">
+					<div class="panel__header">
+						<p class="panel__eyebrow">Canvas</p>
+						<h2>Target frame</h2>
+					</div>
+					<div class="field-grid">
+						<label class="field" for="input-screen-width">
+							<span class="field__label">Width</span>
+							<input type="number" min="1" step="1" id="input-screen-width" inputmode="numeric">
+						</label>
+						<label class="field" for="input-screen-height">
+							<span class="field__label">Height</span>
+							<input type="number" min="1" step="1" id="input-screen-height" inputmode="numeric">
+						</label>
+					</div>
+				</section>
+
+				<section class="panel panel--tight">
+					<div class="panel__header">
+						<p class="panel__eyebrow">Output</p>
+						<h2>Resize scale</h2>
+					</div>
+					<div role="group" class="segmented-control" aria-label="Resize scale">
+						<button type="button" class="segment js-resize-button" data-resize-value="25">25%</button>
+						<button type="button" class="segment js-resize-button" data-resize-value="50">50%</button>
+						<button type="button" class="segment js-resize-button active" data-resize-value="75">75%</button>
+						<button type="button" class="segment js-resize-button" data-resize-value="100">100%</button>
+					</div>
+				</section>
+
+				<section class="panel panel--tight">
+					<div class="panel__header">
+						<p class="panel__eyebrow">Appearance</p>
+						<h2>Theme mode</h2>
+					</div>
+					<div role="group" class="segmented-control" aria-label="Theme mode">
+						<button type="button" class="segment js-theme-button" data-theme-mode="light">Light</button>
+						<button type="button" class="segment js-theme-button" data-theme-mode="dark">Dark</button>
+						<button type="button" class="segment js-theme-button" data-theme-mode="auto">Auto</button>
+					</div>
+				</section>
+			</section>
+
+			<section class="workspace-grid">
+				<section class="panel preview-panel">
+					<div class="panel__header panel__header--spread">
+						<div>
+							<p class="panel__eyebrow">Preview</p>
+							<h2>Current composition</h2>
+							<p class="panel__meta" id="preview-caption">Paste a screenshot to render it here.</p>
+						</div>
+						<button type="button" class="action-button" id="copy-active-image">Copy resized image</button>
+					</div>
+
+					<div class="preview-stage">
+						<canvas id="canvas-preview" class="paste-preview"></canvas>
+						<div class="preview-empty-state" id="preview-empty-state">
+							<p class="preview-empty-state__title">No screenshot loaded yet</p>
+							<p class="preview-empty-state__copy">Use your browser paste shortcut to drop in a screenshot from the clipboard.</p>
+						</div>
+					</div>
+				</section>
+
+				<aside class="panel history-panel">
+					<div class="panel__header">
+						<p class="panel__eyebrow">Library</p>
+						<h2>Recent captures</h2>
+						<p class="panel__meta">Your latest screenshots stay one click away.</p>
+					</div>
+					<div id="recent-uploads" class="gallery"></div>
+				</aside>
+			</section>
+		</main>
 	</div>
 	<template id="template-gallery-tile">
-		<div class="gallery-tile js-gallery-tile">
-			<span class="gallery-remove js-gallery-remove">️</span>
-			<div class="gallery-preview js-gallery-preview"></div>
-		</div>
+		<article class="gallery-tile js-gallery-tile">
+			<button type="button" class="gallery-preview js-gallery-preview">
+				<span class="gallery-preview__meta js-gallery-preview-meta"></span>
+			</button>
+			<button type="button" class="gallery-remove js-gallery-remove" aria-label="Remove screenshot">&times;</button>
+		</article>
 	</template>
-	<script type="module" src="/src/index.js"></script>
+	<script type="module" src="/src/main.js"></script>
 </body>
 </html>

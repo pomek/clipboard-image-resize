@@ -10,6 +10,12 @@ export default function drawImage( context, image = null ) {
 	context.clearRect( 0, 0, canvas.width, canvas.height );
 
 	if ( image ) {
-		context.drawImage( image, 0, 0 );
+		const scale = Math.min( canvas.width / image.width, canvas.height / image.height, 1 );
+		const drawWidth = image.width * scale;
+		const drawHeight = image.height * scale;
+		const offsetX = ( canvas.width - drawWidth ) / 2;
+		const offsetY = ( canvas.height - drawHeight ) / 2;
+
+		context.drawImage( image, offsetX, offsetY, drawWidth, drawHeight );
 	}
 }
