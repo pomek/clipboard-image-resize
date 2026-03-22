@@ -26,24 +26,43 @@ test.beforeEach( async ( { page } ) => {
 	await page.waitForLoadState( 'networkidle' );
 } );
 
-test( 'pastes screenshots, restores them after reload, and shows copy feedback', async ( { page } ) => {
+test( 'pastes a screenshot and shows the resized result', async ( { page } ) => {
 	await pasteImageFromClipboard( page );
 
 	await expect( page.getByText( 'Original 4 x 4 - Output 3 x 3 at 75%.' ) ).toBeVisible();
 	await expect( page.getByRole( 'button', { name: '4 x 4' } ) ).toBeVisible();
-	await expect.poll( async () => page.evaluate( () => window.__clipboardWrites ) ).toBeGreaterThan( 0 );
-	await expect.poll( async () => page.evaluate( () => Boolean( window.__lastClipboardBlob ) ) ).toBe( true );
 
+	await waitForCopiedClipboardImage( page );
+} );
+
+test( 'ignores pasting an already resized clipboard image', async ( { page } ) => {
+	await pasteImageFromClipboard( page );
+	await waitForCopiedClipboardImage( page );
 	await pasteCopiedImageFromClipboard( page );
 
 	await expect.poll( async () => page.locator( '.js-gallery-tile' ).count() ).toBe( 1 );
 	await expect( page.getByText( 'Ignored the already resized clipboard image.' ) ).toBeVisible();
+} );
+
+test( 'shows temporary success feedback after copying the active image', async ( { page } ) => {
+	await pasteImageFromClipboard( page );
 
 	const copyButton = page.locator( '#copy-active-image' );
 
 	await copyButton.click();
+
 	await expect.poll( async () => getClassFlag( copyButton, 'action-button--success' ) ).toBe( true );
-	await expect.poll( async () => getClassFlag( copyButton, 'action-button--success' ), { timeout: 3000 } ).toBe( false );
+	await expect.poll(
+		async () => getClassFlag( copyButton, 'action-button--success' ),
+		{ timeout: 3000 }
+	).toBe( false );
+} );
+
+test( 'restores pasted screenshots after reload', async ( { page } ) => {
+	await pasteImageFromClipboard( page );
+
+	await expect( page.getByRole( 'button', { name: '4 x 4' } ) ).toBeVisible();
+	await expect( page.getByText( 'Original 4 x 4 - Output 3 x 3 at 75%.' ) ).toBeVisible();
 
 	await page.reload();
 	await page.waitForLoadState( 'networkidle' );
@@ -52,19 +71,50 @@ test( 'pastes screenshots, restores them after reload, and shows copy feedback',
 	await expect( page.getByText( 'Original 4 x 4 - Output 3 x 3 at 75%.' ) ).toBeVisible();
 } );
 
-test( 'persists the selected theme across reloads', async ( { page } ) => {
+test( 'applies the selected dark theme', async ( { page } ) => {
 	await page.getByRole( 'button', { name: 'Dark' } ).click();
 
-	await expect.poll( async () => page.evaluate( () => document.documentElement.dataset.themePreference ) ).toBe( 'dark' );
-	await expect.poll( async () => page.evaluate( () => document.documentElement.dataset.theme ) ).toBe( 'dark' );
+	await expect.poll(
+		async () => page.evaluate( () => document.documentElement.dataset.themePreference )
+	).toBe( 'dark' );
+
+	await expect.poll(
+		async () => page.evaluate( () => document.documentElement.dataset.theme )
+	).toBe( 'dark' );
+
+	await expect( page.getByRole( 'button', { name: 'Dark' } ) ).toHaveAttribute( 'aria-pressed', 'true' );
+} );
+
+test( 'restores the selected dark theme after reload', async ( { page } ) => {
+	await page.getByRole( 'button', { name: 'Dark' } ).click();
+
+	await expect.poll(
+		async () => page.evaluate( () => document.documentElement.dataset.themePreference )
+	).toBe( 'dark' );
 
 	await page.reload();
 	await page.waitForLoadState( 'networkidle' );
 
-	await expect.poll( async () => page.evaluate( () => document.documentElement.dataset.themePreference ) ).toBe( 'dark' );
-	await expect.poll( async () => page.evaluate( () => document.documentElement.dataset.theme ) ).toBe( 'dark' );
+	await expect.poll(
+		async () => page.evaluate( () => document.documentElement.dataset.themePreference )
+	).toBe( 'dark' );
+
+	await expect.poll(
+		async () => page.evaluate( () => document.documentElement.dataset.theme )
+	).toBe( 'dark' );
+
 	await expect( page.getByRole( 'button', { name: 'Dark' } ) ).toHaveAttribute( 'aria-pressed', 'true' );
 } );
+
+async function waitForCopiedClipboardImage( page ) {
+	await expect.poll(
+		async () => page.evaluate( () => window.__clipboardWrites )
+	).toBeGreaterThan( 0 );
+
+	await expect.poll(
+		async () => page.evaluate( () => Boolean( window.__lastClipboardBlob ) )
+	).toBe( true );
+}
 
 async function pasteImageFromClipboard( page ) {
 	await page.evaluate( async () => {
@@ -106,6 +156,10 @@ async function pasteImageFromClipboard( page ) {
 }
 
 async function pasteCopiedImageFromClipboard( page ) {
+	await expect.poll(
+		async () => page.evaluate( () => Boolean( window.__lastClipboardBlob ) )
+	).toBe( true );
+
 	await page.evaluate( async () => {
 		const clipboardImage = await new Promise( ( resolve, reject ) => {
 			const sourceUrl = URL.createObjectURL( window.__lastClipboardBlob );
