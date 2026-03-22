@@ -5,6 +5,7 @@
   "packageManager": "pnpm@10.32.1",
   "dependencies": {},
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@vitest/coverage-v8": "^4.1.0",
     "execa": "^5.1.1",
     "fake-indexeddb": "^6.2.4",
@@ -18,6 +19,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "gh-pages-deploy": "node scripts/gh-pages-deploy.js"
