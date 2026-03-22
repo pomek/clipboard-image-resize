@@ -8,20 +8,20 @@ const path = require( 'path' );
 ( async () => {
 	try {
 		const commitMessage = `Build: ${ new Date().toISOString() }.`;
+		const outputDirectory = 'dist';
 
 		// Create an empty branch for deploying a new version.
 		await execa( 'git', [ 'checkout', '--orphan', 'gh-pages' ] );
 
 		console.log( 'Building...' );
-		await execa( 'npm', [ 'run', 'build' ] );
-		await fs.writeFile( path.join('build', '.nojekyll'), '' );
-		await execa( 'git', [ '--work-tree', 'build', 'add', '--all' ] );
-		await execa( 'git', [ '--work-tree', 'build', 'add', '--all' ] );
-		await execa( 'git', [ '--work-tree', 'build', 'commit', '-m', commitMessage ] );
+		await execa( 'pnpm', [ 'build' ] );
+		await fs.writeFile( path.join( outputDirectory, '.nojekyll' ), '' );
+		await execa( 'git', [ '--work-tree', outputDirectory, 'add', '--all' ] );
+		await execa( 'git', [ '--work-tree', outputDirectory, 'commit', '-m', commitMessage ] );
 
 		console.log( 'Pushing to gh-pages...' );
 		await execa( 'git', [ 'push', 'origin', 'HEAD:gh-pages', '--force' ] );
-		await execa( 'rm', [ '-r', 'build' ] );
+		await execa( 'rm', [ '-r', outputDirectory ] );
 		await execa( 'git', [ 'checkout', '-f', 'master' ] );
 		await execa( 'git', [ 'branch', '-D', 'gh-pages' ] );
 
