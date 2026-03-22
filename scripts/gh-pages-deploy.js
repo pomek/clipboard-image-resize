@@ -13,8 +13,11 @@ const path = require( 'path' );
 		// Create an empty branch for deploying a new version.
 		await execa( 'git', [ 'checkout', '--orphan', 'gh-pages' ] );
 
-		console.log( 'Building...' );
-		await execa( 'pnpm', [ 'build' ] );
+		const basePath = normalizeBasePath( process.env.GH_PAGES_BASE || './' );
+
+		console.log( `Building with base path: ${ basePath }` );
+
+		await execa( 'pnpm', [ 'build', '--base', basePath ] );
 		await fs.writeFile( path.join( outputDirectory, '.nojekyll' ), '' );
 		await execa( 'git', [ '--work-tree', outputDirectory, 'add', '--all' ] );
 		await execa( 'git', [ '--work-tree', outputDirectory, 'commit', '-m', commitMessage ] );
@@ -31,3 +34,21 @@ const path = require( 'path' );
 		process.exit( 1 );
 	}
 } )();
+
+function normalizeBasePath( value ) {
+	if ( !value ) {
+		return './';
+	}
+
+	const trimmed = value.trim();
+
+	if ( trimmed === '.' || trimmed === './' ) {
+		return './';
+	}
+
+	if ( trimmed.startsWith( './' ) ) {
+		return trimmed.endsWith( '/' ) ? trimmed : `${ trimmed }/`;
+	}
+
+	return trimmed.endsWith( '/' ) ? trimmed : `${ trimmed }/`;
+}
