@@ -5,7 +5,7 @@ import setupThemeController, {
 	readThemePreference,
 	resolveTheme,
 	THEME_STORAGE_KEY,
-} from '../src/theme';
+} from './theme';
 
 describe( 'theme helpers', () => {
 	it( 'normalizes unexpected values to auto', () => {

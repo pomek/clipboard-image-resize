@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import EventEmitter from '../src/eventemitter';
-import mix from '../src/utils/mix';
+import EventEmitter from './eventemitter';
+import mix from './utils/mix';
 
 describe( 'EventEmitter mixin', () => {
 	it( 'fires registered callbacks with the event name and data', () => {

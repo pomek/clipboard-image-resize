@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import Observable from '../../src/observable/observable';
+import Observable from './observable';
 
 describe( 'Observable', () => {
 	it( 'fires a change event when the value changes', () => {

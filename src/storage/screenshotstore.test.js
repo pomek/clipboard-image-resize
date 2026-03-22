@@ -9,9 +9,9 @@ import {
 	saveScreenshot,
 	SCREENSHOT_DATABASE_NAME,
 	touchSavedScreenshot,
-} from '../../src/storage/screenshotstore';
+} from './screenshotstore';
 
-	describe( 'screenshot store', () => {
+describe( 'screenshot store', () => {
 	afterEach( async () => {
 		await resetScreenshotStore();
 		await deleteDatabase( SCREENSHOT_DATABASE_NAME );

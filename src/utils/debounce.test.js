@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import debounce from '../../src/utils/debounce';
+import debounce from './debounce';
 
 describe( 'debounce', () => {
 	it( 'calls the callback once with the latest arguments', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import drawImage from '../../src/utils/drawimage';
+import drawImage from './drawimage';
 
 describe( 'drawImage', () => {
 	it( 'clears the canvas when no image is provided', () => {

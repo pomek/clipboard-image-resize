@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import copyImage from '../../src/utils/copyimage';
+import copyImage from './copyimage';
 
 describe( 'copyImage', () => {
 	it( 'creates a scaled canvas image and writes it to the clipboard', async () => {

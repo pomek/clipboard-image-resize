@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import ObservableInput from '../../src/observable/observableinput';
+import ObservableInput from './observableinput';
 
 describe( 'ObservableInput', () => {
 	it( 'synchronizes the input value on attach and emits debounced changes', () => {

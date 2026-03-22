@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import throttle from '../../src/utils/throttle';
+import throttle from './throttle';
 
 describe( 'throttle', () => {
 	it( 'ignores calls until the cooldown ends', () => {
