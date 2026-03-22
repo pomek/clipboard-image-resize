@@ -1,9 +1,16 @@
 import ObservableInput from './observable/observableinput';
 import Observable from './observable/observable';
+import {
+	listSavedScreenshots,
+	removeSavedScreenshot,
+	saveScreenshot,
+	touchSavedScreenshot,
+} from './storage/screenshotstore';
 import copyImage from './utils/copyimage';
 import drawImage from './utils/drawimage';
 import throttle from './utils/throttle';
 
+const ACTIVE_CAPTURE_STORAGE_KEY = 'clipboard-image-resize:active-capture-id';
 const SUPPORTED_MIME_TYPES = new Set( [ 'image/png', 'image/jpeg' ] );
 
 export default function setupClipboardResizeApp() {
@@ -19,6 +26,8 @@ export default function setupClipboardResizeApp() {
 		screenHeightInput: document.getElementById( 'input-screen-height' ),
 		screenWidthInput: document.getElementById( 'input-screen-width' ),
 	};
+	const entries = new Map();
+	const galleryTiles = new Map();
 	const context = elements.preview.getContext( '2d' );
 	const resizeScale = new Observable( 75 );
 	const activeEntry = new Observable( null );
@@ -49,6 +58,14 @@ export default function setupClipboardResizeApp() {
 		updatePreviewState();
 		updatePreviewCaption();
 		updateCopyButton();
+		persistActiveCaptureId( newValue?.id || null );
+
+		if ( newValue ) {
+			newValue.lastViewedAt = Date.now();
+			touchSavedScreenshot( newValue.id, newValue.lastViewedAt ).catch( error => {
+				console.error( error );
+			} );
+		}
 	} );
 
 	loader.on( 'change', ( event, { newValue } ) => {
@@ -109,7 +126,8 @@ export default function setupClipboardResizeApp() {
 			const entry = await createImageEntry( uploadedFile );
 
 			createGalleryItem( entry );
-			activeEntry.set( entry );
+			await persistEntry( entry );
+			setActiveEntry( entry.id );
 			await copyActiveImage( 'Screenshot resized and copied to the clipboard.' );
 		} catch ( error ) {
 			console.error( error );
@@ -119,9 +137,60 @@ export default function setupClipboardResizeApp() {
 		}
 	}, 100 ) );
 
+	window.addEventListener( 'beforeunload', () => {
+		for ( const entry of entries.values() ) {
+			cleanupEntryResources( entry );
+		}
+	} );
+
+	hydrateSavedEntries();
 	updatePreviewState();
 	updatePreviewCaption();
 	updateCopyButton();
+
+	async function hydrateSavedEntries() {
+		try {
+			const screenshots = await listSavedScreenshots();
+
+			if ( !screenshots.length ) {
+				return;
+			}
+
+			for ( const screenshot of screenshots ) {
+				const entry = await createImageEntryFromRecord( screenshot );
+
+				createGalleryItem( entry, { prepend: false } );
+			}
+
+			const activeCaptureId = readPersistedActiveCaptureId();
+			const initialEntryId = entries.has( activeCaptureId ) ? activeCaptureId : screenshots[ 0 ].id;
+
+			setActiveEntry( initialEntryId );
+			setClipboardStatus( `Restored ${ screenshots.length } saved screenshot${ screenshots.length === 1 ? '' : 's' } from this browser.` );
+		} catch ( error ) {
+			console.error( error );
+			setClipboardStatus( 'Saved screenshots are unavailable in this browser, but live paste still works.', true );
+		}
+	}
+
+	async function persistEntry( entry ) {
+		try {
+			const { trimmedIds } = await saveScreenshot( createStoredScreenshot( entry ) );
+
+			for ( const trimmedId of trimmedIds ) {
+				if ( trimmedId !== entry.id ) {
+					await removeEntry( trimmedId, { persist: false, announce: false } );
+				}
+			}
+		} catch ( error ) {
+			console.error( error );
+			setClipboardStatus( 'Saved screenshots are unavailable, but this session still works.', true );
+		}
+	}
+
+	function setActiveEntry( entryId ) {
+		activeEntry.set( entryId ? entries.get( entryId ) || null : null );
+	}
 
 	async function copyActiveImage( successMessage ) {
 		if ( !activeEntry.value ) {
@@ -138,8 +207,8 @@ export default function setupClipboardResizeApp() {
 	}
 
 	function updateGallerySelection() {
-		for ( const tile of elements.gallery.querySelectorAll( '.js-gallery-tile' ) ) {
-			const isActive = tile.dataset.entryId === activeEntry.value?.id;
+		for ( const [ entryId, tile ] of galleryTiles ) {
+			const isActive = entryId === activeEntry.value?.id;
 
 			tile.classList.toggle( 'gallery-tile--active', isActive );
 		}
@@ -175,7 +244,11 @@ export default function setupClipboardResizeApp() {
 		elements.clipboardStatus.classList.toggle( 'status-pill--accent', !isWarning );
 	}
 
-	function createGalleryItem( entry ) {
+	function createGalleryItem( entry, { prepend = true } = {} ) {
+		if ( entries.has( entry.id ) ) {
+			return;
+		}
+
 		const galleryContent = elements.galleryTemplate.content.cloneNode( true );
 		const galleryTile = galleryContent.querySelector( '.js-gallery-tile' );
 		const galleryRemove = galleryTile.querySelector( '.js-gallery-remove' );
@@ -187,20 +260,71 @@ export default function setupClipboardResizeApp() {
 		galleryPreviewMeta.textContent = `${ entry.image.width } x ${ entry.image.height }`;
 
 		galleryPreview.addEventListener( 'click', async () => {
-			activeEntry.set( entry );
+			setActiveEntry( entry.id );
 			await copyActiveImage( 'Selected screenshot copied at the current scale.' );
 		} );
 
-		galleryRemove.addEventListener( 'click', () => {
-			galleryTile.remove();
-
-			if ( activeEntry.value?.id === entry.id ) {
-				activeEntry.set( null );
-				setClipboardStatus( 'Removed the selected screenshot from the current session.', false );
-			}
+		galleryRemove.addEventListener( 'click', async () => {
+			await removeEntry( entry.id );
 		} );
 
-		elements.gallery.prepend( galleryTile );
+		entries.set( entry.id, entry );
+		galleryTiles.set( entry.id, galleryTile );
+
+		if ( prepend ) {
+			elements.gallery.prepend( galleryTile );
+		} else {
+			elements.gallery.append( galleryTile );
+		}
+	}
+
+	async function removeEntry( entryId, { persist = true, announce = true } = {} ) {
+		const entry = entries.get( entryId );
+
+		if ( !entry ) {
+			return;
+		}
+
+		galleryTiles.get( entryId )?.remove();
+		galleryTiles.delete( entryId );
+		entries.delete( entryId );
+		cleanupEntryResources( entry );
+
+		if ( persist ) {
+			try {
+				await removeSavedScreenshot( entryId );
+			} catch ( error ) {
+				console.error( error );
+
+				if ( announce ) {
+					setClipboardStatus( 'Could not update the saved screenshots for this browser.', true );
+				}
+			}
+		}
+
+		if ( activeEntry.value?.id === entryId ) {
+			const fallbackEntry = getFirstEntry();
+
+			setActiveEntry( fallbackEntry?.id || null );
+
+			if ( announce ) {
+				if ( fallbackEntry ) {
+					setClipboardStatus( 'Removed the selected screenshot and switched to the next saved capture.' );
+				} else {
+					setClipboardStatus( 'Removed the selected screenshot from this browser.' );
+				}
+			}
+		}
+	}
+
+	function getFirstEntry() {
+		const firstTile = elements.gallery.querySelector( '.js-gallery-tile' );
+
+		if ( !firstTile ) {
+			return null;
+		}
+
+		return entries.get( firstTile.dataset.entryId ) || null;
 	}
 }
 
@@ -222,33 +346,84 @@ function isImage( file ) {
 	return SUPPORTED_MIME_TYPES.has( file.type );
 }
 
-async function createImageEntry( file ) {
-	const sourceUrl = await readFileAsDataUrl( file );
-	const image = await loadImage( sourceUrl );
+function readPersistedActiveCaptureId() {
+	try {
+		return window.localStorage.getItem( ACTIVE_CAPTURE_STORAGE_KEY );
+	} catch ( error ) {
+		return null;
+	}
+}
 
+function persistActiveCaptureId( entryId ) {
+	try {
+		if ( entryId ) {
+			window.localStorage.setItem( ACTIVE_CAPTURE_STORAGE_KEY, entryId );
+		} else {
+			window.localStorage.removeItem( ACTIVE_CAPTURE_STORAGE_KEY );
+		}
+	} catch ( error ) {
+		// Ignore storage failures and keep the current session working.
+	}
+}
+
+async function createImageEntry( file ) {
+	const sourceUrl = URL.createObjectURL( file );
+
+	try {
+		const image = await loadImage( sourceUrl );
+
+		return {
+			blob: file,
+			createdAt: Date.now(),
+			id: `u${ crypto.randomUUID() }`,
+			image,
+			lastViewedAt: Date.now(),
+			objectUrl: sourceUrl,
+			sourceUrl,
+		};
+	} catch ( error ) {
+		URL.revokeObjectURL( sourceUrl );
+		throw error;
+	}
+}
+
+async function createImageEntryFromRecord( record ) {
+	const sourceUrl = URL.createObjectURL( record.blob );
+
+	try {
+		const image = await loadImage( sourceUrl );
+
+		return {
+			blob: record.blob,
+			createdAt: record.createdAt,
+			id: record.id,
+			image,
+			lastViewedAt: record.lastViewedAt || record.createdAt,
+			objectUrl: sourceUrl,
+			sourceUrl,
+		};
+	} catch ( error ) {
+		URL.revokeObjectURL( sourceUrl );
+		throw error;
+	}
+}
+
+function createStoredScreenshot( entry ) {
 	return {
-		createdAt: Date.now(),
-		file,
-		id: `u${ crypto.randomUUID() }`,
-		image,
-		sourceUrl,
+		blob: entry.blob,
+		createdAt: entry.createdAt,
+		height: entry.image.height,
+		id: entry.id,
+		lastViewedAt: entry.lastViewedAt,
+		mimeType: entry.blob.type,
+		width: entry.image.width,
 	};
 }
 
-function readFileAsDataUrl( file ) {
-	return new Promise( ( resolve, reject ) => {
-		const reader = new FileReader();
-
-		reader.addEventListener( 'load', () => {
-			resolve( reader.result );
-		} );
-
-		reader.addEventListener( 'error', () => {
-			reject( reader.error || new Error( 'Could not read the file.' ) );
-		} );
-
-		reader.readAsDataURL( file );
-	} );
+function cleanupEntryResources( entry ) {
+	if ( entry?.objectUrl ) {
+		URL.revokeObjectURL( entry.objectUrl );
+	}
 }
 
 function loadImage( sourceUrl ) {
