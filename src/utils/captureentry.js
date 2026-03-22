@@ -1,5 +1,75 @@
 const ACTIVE_CAPTURE_STORAGE_KEY = 'clipboard-image-resize:active-capture-id';
 const SUPPORTED_MIME_TYPES = new Set( [ 'image/png', 'image/jpeg' ] );
+const IMAGE_FINGERPRINT_SIZE = 8;
+
+export function areImageFingerprintsEquivalent( leftFingerprint, rightFingerprint, {
+	maxDistance = 6,
+} = {} ) {
+	if ( !leftFingerprint || !rightFingerprint ) {
+		return false;
+	}
+
+	const [ leftSize, leftHash ] = leftFingerprint.split( ':' );
+	const [ rightSize, rightHash ] = rightFingerprint.split( ':' );
+
+	if ( leftSize !== rightSize || !leftHash || !rightHash || leftHash.length !== rightHash.length ) {
+		return false;
+	}
+
+	let distance = 0;
+
+	for ( let index = 0; index < leftHash.length; index++ ) {
+		if ( leftHash[ index ] !== rightHash[ index ] ) {
+			distance++;
+
+			if ( distance > maxDistance ) {
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+export async function createImageFingerprint( image, {
+	height = image.height,
+	width = image.width,
+} = {} ) {
+	const resizedCanvas = document.createElement( 'canvas' );
+	const resizedContext = resizedCanvas.getContext( '2d', { willReadFrequently: true } );
+	const canvas = document.createElement( 'canvas' );
+	const context = canvas.getContext( '2d', { willReadFrequently: true } );
+	const grayscaleValues = [];
+	let grayscaleTotal = 0;
+
+	resizedCanvas.width = width;
+	resizedCanvas.height = height;
+	resizedContext.drawImage( image, 0, 0, width, height );
+
+	canvas.width = IMAGE_FINGERPRINT_SIZE;
+	canvas.height = IMAGE_FINGERPRINT_SIZE;
+	context.drawImage( resizedCanvas, 0, 0, IMAGE_FINGERPRINT_SIZE, IMAGE_FINGERPRINT_SIZE );
+
+	const { data } = context.getImageData( 0, 0, IMAGE_FINGERPRINT_SIZE, IMAGE_FINGERPRINT_SIZE );
+
+	for ( let index = 0; index < data.length; index += 4 ) {
+		const grayscaleValue = Math.round(
+			data[ index ] * 0.299 +
+			data[ index + 1 ] * 0.587 +
+			data[ index + 2 ] * 0.114
+		);
+
+		grayscaleValues.push( grayscaleValue );
+		grayscaleTotal += grayscaleValue;
+	}
+
+	const grayscaleAverage = grayscaleTotal / grayscaleValues.length;
+	const hash = grayscaleValues
+		.map( value => value >= grayscaleAverage ? '1' : '0' )
+		.join( '' );
+
+	return `${ width }x${ height }:${ hash }`;
+}
 
 export function toCanvasDimension( value ) {
 	const number = Number( value );

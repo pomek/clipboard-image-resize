@@ -1,7 +1,9 @@
 import ObservableInput from './observable/observableinput';
 import Observable from './observable/observable';
 import {
+	areImageFingerprintsEquivalent,
 	cleanupEntryResources,
+	createImageFingerprint,
 	createImageEntry,
 	createImageEntryFromRecord,
 	createStoredScreenshot,
@@ -41,6 +43,7 @@ export default function setupClipboardResizeApp() {
 	const context = elements.preview.getContext( '2d' );
 	const entries = new Map();
 	const galleryTiles = new Map();
+	let lastCopiedFingerprint = null;
 	const statusFeedback = createTransientStatusController( elements.clipboardStatus );
 	const copyFeedback = createTemporaryClassController( elements.copyButton, {
 		className: 'action-button--success',
@@ -135,6 +138,13 @@ export default function setupClipboardResizeApp() {
 			}
 
 			const entry = await createImageEntry( uploadedFile );
+			const pastedFingerprint = await createImageFingerprint( entry.image );
+
+			if ( areImageFingerprintsEquivalent( pastedFingerprint, lastCopiedFingerprint ) ) {
+				cleanupEntryResources( entry );
+				statusFeedback.show( 'Ignored the already resized clipboard image.', { warning: true } );
+				return;
+			}
 
 			createGalleryItem( entry );
 			await persistEntry( entry );
@@ -212,6 +222,10 @@ export default function setupClipboardResizeApp() {
 
 		try {
 			await copyImage( activeEntry.value.image, resizeScale );
+			lastCopiedFingerprint = await createImageFingerprint( activeEntry.value.image, {
+				height: Math.max( 1, Math.round( activeEntry.value.image.height * resizeScale.value / 100 ) ),
+				width: Math.max( 1, Math.round( activeEntry.value.image.width * resizeScale.value / 100 ) ),
+			} );
 			statusFeedback.clear();
 
 			if ( showSuccessFeedback ) {

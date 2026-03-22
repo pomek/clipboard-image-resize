@@ -1,16 +1,16 @@
 import { expect, test } from '@playwright/test';
 
-const ONE_PIXEL_PNG_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2B7e8AAAAASUVORK5CYII=';
-
 test.beforeEach( async ( { page } ) => {
 	await page.addInitScript( () => {
 		window.__clipboardWrites = 0;
+		window.__lastClipboardBlob = null;
 
 		Object.defineProperty( navigator, 'clipboard', {
 			configurable: true,
 			value: {
 				write: async items => {
 					window.__clipboardWrites += items.length;
+					window.__lastClipboardBlob = items[ 0 ]?.items?.[ 'image/png' ] || null;
 				},
 			},
 		} );
@@ -29,9 +29,15 @@ test.beforeEach( async ( { page } ) => {
 test( 'pastes screenshots, restores them after reload, and shows copy feedback', async ( { page } ) => {
 	await pasteImageFromClipboard( page );
 
-	await expect( page.getByText( 'Original 1 x 1 - Output 1 x 1 at 75%.' ) ).toBeVisible();
-	await expect( page.getByRole( 'button', { name: '1 x 1' } ) ).toBeVisible();
+	await expect( page.getByText( 'Original 4 x 4 - Output 3 x 3 at 75%.' ) ).toBeVisible();
+	await expect( page.getByRole( 'button', { name: '4 x 4' } ) ).toBeVisible();
 	await expect.poll( async () => page.evaluate( () => window.__clipboardWrites ) ).toBeGreaterThan( 0 );
+	await expect.poll( async () => page.evaluate( () => Boolean( window.__lastClipboardBlob ) ) ).toBe( true );
+
+	await pasteCopiedImageFromClipboard( page );
+
+	await expect.poll( async () => page.locator( '.js-gallery-tile' ).count() ).toBe( 1 );
+	await expect( page.getByText( 'Ignored the already resized clipboard image.' ) ).toBeVisible();
 
 	const copyButton = page.locator( '#copy-active-image' );
 
@@ -42,8 +48,8 @@ test( 'pastes screenshots, restores them after reload, and shows copy feedback',
 	await page.reload();
 	await page.waitForLoadState( 'networkidle' );
 
-	await expect( page.getByRole( 'button', { name: '1 x 1' } ) ).toBeVisible();
-	await expect( page.getByText( 'Original 1 x 1 - Output 1 x 1 at 75%.' ) ).toBeVisible();
+	await expect( page.getByRole( 'button', { name: '4 x 4' } ) ).toBeVisible();
+	await expect( page.getByText( 'Original 4 x 4 - Output 3 x 3 at 75%.' ) ).toBeVisible();
 } );
 
 test( 'persists the selected theme across reloads', async ( { page } ) => {
@@ -61,8 +67,26 @@ test( 'persists the selected theme across reloads', async ( { page } ) => {
 } );
 
 async function pasteImageFromClipboard( page ) {
-	await page.evaluate( async dataUrl => {
-		const blob = await fetch( dataUrl ).then( response => response.blob() );
+	await page.evaluate( async () => {
+		const canvas = document.createElement( 'canvas' );
+		const context = canvas.getContext( '2d' );
+
+		canvas.width = 4;
+		canvas.height = 4;
+		context.fillStyle = '#101010';
+		context.fillRect( 0, 0, canvas.width, canvas.height );
+		context.fillStyle = '#ff4d4d';
+		context.fillRect( 0, 0, 2, 2 );
+		context.fillStyle = '#4da6ff';
+		context.fillRect( 2, 0, 2, 2 );
+		context.fillStyle = '#46c46a';
+		context.fillRect( 0, 2, 2, 2 );
+		context.fillStyle = '#f4d03f';
+		context.fillRect( 2, 2, 2, 2 );
+
+		const blob = await new Promise( resolve => {
+			canvas.toBlob( resolve, 'image/png', 1 );
+		} );
 		const file = new File( [ blob ], 'capture.png', { type: 'image/png' } );
 		const event = new Event( 'paste', { bubbles: true, cancelable: true } );
 
@@ -78,7 +102,53 @@ async function pasteImageFromClipboard( page ) {
 		} );
 
 		window.dispatchEvent( event );
-	}, ONE_PIXEL_PNG_DATA_URL );
+	} );
+}
+
+async function pasteCopiedImageFromClipboard( page ) {
+	await page.evaluate( async () => {
+		const clipboardImage = await new Promise( ( resolve, reject ) => {
+			const sourceUrl = URL.createObjectURL( window.__lastClipboardBlob );
+			const image = new Image();
+
+			image.addEventListener( 'load', () => {
+				URL.revokeObjectURL( sourceUrl );
+				resolve( image );
+			} );
+
+			image.addEventListener( 'error', () => {
+				URL.revokeObjectURL( sourceUrl );
+				reject( new Error( 'Could not load the clipboard image.' ) );
+			} );
+
+			image.src = sourceUrl;
+		} );
+		const canvas = document.createElement( 'canvas' );
+		const context = canvas.getContext( '2d' );
+
+		canvas.width = clipboardImage.width;
+		canvas.height = clipboardImage.height;
+		context.drawImage( clipboardImage, 0, 0 );
+
+		const reencodedBlob = await new Promise( resolve => {
+			canvas.toBlob( resolve, 'image/jpeg', 1 );
+		} );
+		const file = new File( [ reencodedBlob ], 'resized.jpg', { type: 'image/jpeg' } );
+		const event = new Event( 'paste', { bubbles: true, cancelable: true } );
+
+		Object.defineProperty( event, 'clipboardData', {
+			value: {
+				items: [ {
+					kind: 'file',
+					getAsFile() {
+						return file;
+					},
+				} ],
+			},
+		} );
+
+		window.dispatchEvent( event );
+	} );
 }
 
 async function getClassFlag( locator, className ) {

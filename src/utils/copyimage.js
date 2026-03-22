@@ -18,9 +18,26 @@ export default function copyImage( image, observableScale ) {
 	newContext.scale( scale, scale );
 	newContext.drawImage( image, 0, 0 );
 
-	const clipboardItem = new ClipboardItem( {
-		'image/png': new Promise( resolve => newCanvas.toBlob( resolve ) )
-	} );
+	return createCanvasBlob( newCanvas ).then( async blob => {
+		const clipboardItem = new ClipboardItem( {
+			'image/png': blob,
+		} );
 
-	return navigator.clipboard.write( [ clipboardItem ] );
+		await navigator.clipboard.write( [ clipboardItem ] );
+
+		return blob;
+	} );
+}
+
+function createCanvasBlob( canvas ) {
+	return new Promise( ( resolve, reject ) => {
+		canvas.toBlob( blob => {
+			if ( blob ) {
+				resolve( blob );
+				return;
+			}
+
+			reject( new Error( 'Could not create the resized image blob.' ) );
+		} );
+	} );
 }
