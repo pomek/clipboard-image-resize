@@ -43,15 +43,11 @@
 		<main class="app-shell">
 			<header class="hero">
 				<div class="hero__copy">
-					<p class="eyebrow">Clipboard studio</p>
-					<h1>Resize screenshots without leaving the browser.</h1>
+					<p class="eyebrow">Clipboard image resize</p>
+					<h1>Screenshot Resizer</h1>
 					<p class="hero__lede">
-						Paste a screenshot, tune the scale, and keep a cleaner copy ready for your next paste.
+						Paste, resize, and copy with one quick pass.
 					</p>
-				</div>
-				<div class="hero__badges">
-					<p class="status-pill" id="theme-status">Theme follows your system appearance.</p>
-					<p class="status-pill status-pill--accent" id="clipboard-status">Paste a PNG or JPEG screenshot to begin.</p>
 				</div>
 			</header>
 
@@ -59,7 +55,7 @@
 				<section class="panel panel--tight">
 					<div class="panel__header">
 						<p class="panel__eyebrow">Canvas</p>
-						<h2>Target frame</h2>
+						<h2>Frame</h2>
 					</div>
 					<div class="field-grid">
 						<label class="field" for="input-screen-width">
@@ -75,21 +71,8 @@
 
 				<section class="panel panel--tight">
 					<div class="panel__header">
-						<p class="panel__eyebrow">Output</p>
-						<h2>Resize scale</h2>
-					</div>
-					<div role="group" class="segmented-control" aria-label="Resize scale">
-						<button type="button" class="segment js-resize-button" data-resize-value="25">25%</button>
-						<button type="button" class="segment js-resize-button" data-resize-value="50">50%</button>
-						<button type="button" class="segment js-resize-button active" data-resize-value="75">75%</button>
-						<button type="button" class="segment js-resize-button" data-resize-value="100">100%</button>
-					</div>
-				</section>
-
-				<section class="panel panel--tight">
-					<div class="panel__header">
 						<p class="panel__eyebrow">Appearance</p>
-						<h2>Theme mode</h2>
+						<h2>Theme</h2>
 					</div>
 					<div role="group" class="segmented-control" aria-label="Theme mode">
 						<button type="button" class="segment js-theme-button" data-theme-mode="light">Light</button>
@@ -104,11 +87,33 @@
 					<div class="panel__header panel__header--spread">
 						<div>
 							<p class="panel__eyebrow">Preview</p>
-							<h2>Current composition</h2>
+							<h2>Preview</h2>
 							<p class="panel__meta" id="preview-caption">Paste a screenshot to render it here.</p>
 						</div>
-						<button type="button" class="action-button" id="copy-active-image">Copy resized image</button>
+						<div class="preview-toolbar">
+							<div role="group" class="segmented-control segmented-control--inline" aria-label="Resize scale">
+								<button type="button" class="segment js-resize-button" data-resize-value="25">25%</button>
+								<button type="button" class="segment js-resize-button" data-resize-value="50">50%</button>
+								<button type="button" class="segment js-resize-button active" data-resize-value="75">75%</button>
+								<button type="button" class="segment js-resize-button" data-resize-value="100">100%</button>
+							</div>
+							<button type="button" class="action-button action-button--icon" id="copy-active-image" aria-label="Copy resized image">
+								<span class="action-button__icon action-button__icon--copy" aria-hidden="true">
+									<svg viewBox="0 0 16 16" focusable="false">
+										<path d="M5.5 2.5H3.75A1.25 1.25 0 0 0 2.5 3.75v8.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V10.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4"></path>
+										<rect x="6.5" y="2.5" width="7" height="7" rx="1.25" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4"></rect>
+									</svg>
+								</span>
+								<span class="action-button__icon action-button__icon--success" aria-hidden="true">
+									<svg viewBox="0 0 16 16" focusable="false">
+										<path d="M3.5 8.5 6.5 11.5 12.5 4.75" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+									</svg>
+								</span>
+								<span class="action-button__label">Copy</span>
+							</button>
+						</div>
 					</div>
+					<p id="clipboard-status" class="status-note" hidden aria-live="polite"></p>
 
 					<div class="preview-stage">
 						<canvas id="canvas-preview" class="paste-preview"></canvas>
@@ -122,8 +127,8 @@
 				<aside class="panel history-panel">
 					<div class="panel__header">
 						<p class="panel__eyebrow">Library</p>
-						<h2>Recent captures</h2>
-						<p class="panel__meta">Your latest screenshots stay one click away.</p>
+						<h2>Saved shots</h2>
+						<p class="panel__meta">Recent screenshots from this browser.</p>
 					</div>
 					<div id="recent-uploads" class="gallery"></div>
 				</aside>

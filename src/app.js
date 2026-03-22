@@ -28,6 +28,8 @@ export default function setupClipboardResizeApp() {
 	};
 	const entries = new Map();
 	const galleryTiles = new Map();
+	let clipboardStatusTimeout = null;
+	let copyFeedbackTimeout = null;
 	const context = elements.preview.getContext( '2d' );
 	const resizeScale = new Observable( 75 );
 	const activeEntry = new Observable( null );
@@ -84,7 +86,7 @@ export default function setupClipboardResizeApp() {
 		updatePreviewCaption();
 
 		if ( activeEntry.value ) {
-			await copyActiveImage( 'Resized image copied to the clipboard.' );
+			await copyActiveImage();
 		}
 	} );
 
@@ -97,7 +99,7 @@ export default function setupClipboardResizeApp() {
 	}
 
 	elements.copyButton.addEventListener( 'click', async () => {
-		await copyActiveImage( 'Resized image copied to the clipboard.' );
+		await copyActiveImage( { showSuccessFeedback: true } );
 	} );
 
 	window.addEventListener( 'paste', throttle( async event => {
@@ -128,7 +130,7 @@ export default function setupClipboardResizeApp() {
 			createGalleryItem( entry );
 			await persistEntry( entry );
 			setActiveEntry( entry.id );
-			await copyActiveImage( 'Screenshot resized and copied to the clipboard.' );
+			await copyActiveImage();
 		} catch ( error ) {
 			console.error( error );
 			setClipboardStatus( 'The screenshot could not be processed in this browser.', true );
@@ -166,7 +168,6 @@ export default function setupClipboardResizeApp() {
 			const initialEntryId = entries.has( activeCaptureId ) ? activeCaptureId : screenshots[ 0 ].id;
 
 			setActiveEntry( initialEntryId );
-			setClipboardStatus( `Restored ${ screenshots.length } saved screenshot${ screenshots.length === 1 ? '' : 's' } from this browser.` );
 		} catch ( error ) {
 			console.error( error );
 			setClipboardStatus( 'Saved screenshots are unavailable in this browser, but live paste still works.', true );
@@ -192,14 +193,18 @@ export default function setupClipboardResizeApp() {
 		activeEntry.set( entryId ? entries.get( entryId ) || null : null );
 	}
 
-	async function copyActiveImage( successMessage ) {
+	async function copyActiveImage( { showSuccessFeedback = false } = {} ) {
 		if ( !activeEntry.value ) {
 			return;
 		}
 
 		try {
 			await copyImage( activeEntry.value.image, resizeScale );
-			setClipboardStatus( successMessage );
+			clearClipboardStatus();
+
+			if ( showSuccessFeedback ) {
+				showCopySuccessFeedback();
+			}
 		} catch ( error ) {
 			console.error( error );
 			setClipboardStatus( 'Clipboard access is unavailable. Use a secure browser context to copy images.', true );
@@ -239,9 +244,39 @@ export default function setupClipboardResizeApp() {
 	}
 
 	function setClipboardStatus( message, isWarning = false ) {
+		if ( !elements.clipboardStatus ) {
+			return;
+		}
+
+		window.clearTimeout( clipboardStatusTimeout );
+
 		elements.clipboardStatus.textContent = message;
-		elements.clipboardStatus.classList.toggle( 'status-pill--warning', isWarning );
-		elements.clipboardStatus.classList.toggle( 'status-pill--accent', !isWarning );
+		elements.clipboardStatus.hidden = false;
+		elements.clipboardStatus.classList.toggle( 'status-note--warning', isWarning );
+
+		clipboardStatusTimeout = window.setTimeout( () => {
+			clearClipboardStatus();
+		}, isWarning ? 5000 : 2600 );
+	}
+
+	function clearClipboardStatus() {
+		if ( !elements.clipboardStatus ) {
+			return;
+		}
+
+		window.clearTimeout( clipboardStatusTimeout );
+		elements.clipboardStatus.hidden = true;
+		elements.clipboardStatus.textContent = '';
+		elements.clipboardStatus.classList.remove( 'status-note--warning' );
+	}
+
+	function showCopySuccessFeedback() {
+		window.clearTimeout( copyFeedbackTimeout );
+		elements.copyButton.classList.add( 'action-button--success' );
+
+		copyFeedbackTimeout = window.setTimeout( () => {
+			elements.copyButton.classList.remove( 'action-button--success' );
+		}, 1600 );
 	}
 
 	function createGalleryItem( entry, { prepend = true } = {} ) {
@@ -261,7 +296,7 @@ export default function setupClipboardResizeApp() {
 
 		galleryPreview.addEventListener( 'click', async () => {
 			setActiveEntry( entry.id );
-			await copyActiveImage( 'Selected screenshot copied at the current scale.' );
+			await copyActiveImage();
 		} );
 
 		galleryRemove.addEventListener( 'click', async () => {
@@ -306,14 +341,6 @@ export default function setupClipboardResizeApp() {
 			const fallbackEntry = getFirstEntry();
 
 			setActiveEntry( fallbackEntry?.id || null );
-
-			if ( announce ) {
-				if ( fallbackEntry ) {
-					setClipboardStatus( 'Removed the selected screenshot and switched to the next saved capture.' );
-				} else {
-					setClipboardStatus( 'Removed the selected screenshot from this browser.' );
-				}
-			}
 		}
 	}
 
