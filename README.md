@@ -48,7 +48,9 @@ src/
   storage/                IndexedDB storage logic
   styles/                 app styles
   utils/                  image, UI, and helper utilities
-e2e/                      Playwright end-to-end tests
+tests/
+  app.spec.js             Playwright end-to-end tests
+  setup.js                shared Vitest setup
 ```
 
 ## Testing
