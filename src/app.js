@@ -1,6 +1,21 @@
 import ObservableInput from './observable/observableinput';
 import Observable from './observable/observable';
 import {
+	cleanupEntryResources,
+	createImageEntry,
+	createImageEntryFromRecord,
+	createStoredScreenshot,
+	isImage,
+	persistActiveCaptureId,
+	readPersistedActiveCaptureId,
+	toCanvasDimension,
+} from './utils/captureentry';
+import createGalleryTile from './utils/gallerytile';
+import {
+	createTemporaryClassController,
+	createTransientStatusController,
+} from './utils/statusfeedback';
+import {
 	listSavedScreenshots,
 	removeSavedScreenshot,
 	saveScreenshot,
@@ -9,9 +24,6 @@ import {
 import copyImage from './utils/copyimage';
 import drawImage from './utils/drawimage';
 import throttle from './utils/throttle';
-
-const ACTIVE_CAPTURE_STORAGE_KEY = 'clipboard-image-resize:active-capture-id';
-const SUPPORTED_MIME_TYPES = new Set( [ 'image/png', 'image/jpeg' ] );
 
 export default function setupClipboardResizeApp() {
 	const elements = {
@@ -26,11 +38,13 @@ export default function setupClipboardResizeApp() {
 		screenHeightInput: document.getElementById( 'input-screen-height' ),
 		screenWidthInput: document.getElementById( 'input-screen-width' ),
 	};
+	const context = elements.preview.getContext( '2d' );
 	const entries = new Map();
 	const galleryTiles = new Map();
-	let clipboardStatusTimeout = null;
-	let copyFeedbackTimeout = null;
-	const context = elements.preview.getContext( '2d' );
+	const statusFeedback = createTransientStatusController( elements.clipboardStatus );
+	const copyFeedback = createTemporaryClassController( elements.copyButton, {
+		className: 'action-button--success',
+	} );
 	const resizeScale = new Observable( 75 );
 	const activeEntry = new Observable( null );
 	const loader = new Observable( false );
@@ -50,7 +64,6 @@ export default function setupClipboardResizeApp() {
 
 	screenWidthInput.on( 'change', syncCanvasSize );
 	screenHeightInput.on( 'change', syncCanvasSize );
-
 	screenWidthInput.attach();
 	screenHeightInput.attach();
 
@@ -64,9 +77,7 @@ export default function setupClipboardResizeApp() {
 
 		if ( newValue ) {
 			newValue.lastViewedAt = Date.now();
-			touchSavedScreenshot( newValue.id, newValue.lastViewedAt ).catch( error => {
-				console.error( error );
-			} );
+			touchSavedScreenshot( newValue.id, newValue.lastViewedAt ).catch( console.error );
 		}
 	} );
 
@@ -92,7 +103,6 @@ export default function setupClipboardResizeApp() {
 
 	for ( const button of document.querySelectorAll( '.js-resize-button' ) ) {
 		button.setAttribute( 'aria-pressed', String( button.classList.contains( 'active' ) ) );
-
 		button.addEventListener( 'click', () => {
 			resizeScale.set( Number( button.dataset.resizeValue ) );
 		} );
@@ -107,11 +117,10 @@ export default function setupClipboardResizeApp() {
 			return;
 		}
 
-		const content = [ ...event.clipboardData.items ]
-			.find( item => item.kind === 'file' );
+		const content = [ ...event.clipboardData.items ].find( item => item.kind === 'file' );
 
 		if ( !content ) {
-			setClipboardStatus( 'Paste a PNG or JPEG screenshot from your clipboard.', true );
+			statusFeedback.show( 'Paste a PNG or JPEG screenshot from your clipboard.', { warning: true } );
 			return;
 		}
 
@@ -121,7 +130,7 @@ export default function setupClipboardResizeApp() {
 			const uploadedFile = content.getAsFile();
 
 			if ( !isImage( uploadedFile ) ) {
-				setClipboardStatus( 'That paste did not contain a supported PNG or JPEG image.', true );
+				statusFeedback.show( 'That paste did not contain a supported PNG or JPEG image.', { warning: true } );
 				return;
 			}
 
@@ -133,13 +142,16 @@ export default function setupClipboardResizeApp() {
 			await copyActiveImage();
 		} catch ( error ) {
 			console.error( error );
-			setClipboardStatus( 'The screenshot could not be processed in this browser.', true );
+			statusFeedback.show( 'The screenshot could not be processed in this browser.', { warning: true } );
 		} finally {
 			loader.set( false );
 		}
 	}, 100 ) );
 
 	window.addEventListener( 'beforeunload', () => {
+		statusFeedback.clear();
+		copyFeedback.clear();
+
 		for ( const entry of entries.values() ) {
 			cleanupEntryResources( entry );
 		}
@@ -170,7 +182,7 @@ export default function setupClipboardResizeApp() {
 			setActiveEntry( initialEntryId );
 		} catch ( error ) {
 			console.error( error );
-			setClipboardStatus( 'Saved screenshots are unavailable in this browser, but live paste still works.', true );
+			statusFeedback.show( 'Saved screenshots are unavailable in this browser, but live paste still works.', { warning: true } );
 		}
 	}
 
@@ -180,12 +192,12 @@ export default function setupClipboardResizeApp() {
 
 			for ( const trimmedId of trimmedIds ) {
 				if ( trimmedId !== entry.id ) {
-					await removeEntry( trimmedId, { persist: false, announce: false } );
+					await removeEntry( trimmedId, { persist: false } );
 				}
 			}
 		} catch ( error ) {
 			console.error( error );
-			setClipboardStatus( 'Saved screenshots are unavailable, but this session still works.', true );
+			statusFeedback.show( 'Saved screenshots are unavailable, but this session still works.', { warning: true } );
 		}
 	}
 
@@ -200,22 +212,20 @@ export default function setupClipboardResizeApp() {
 
 		try {
 			await copyImage( activeEntry.value.image, resizeScale );
-			clearClipboardStatus();
+			statusFeedback.clear();
 
 			if ( showSuccessFeedback ) {
-				showCopySuccessFeedback();
+				copyFeedback.trigger();
 			}
 		} catch ( error ) {
 			console.error( error );
-			setClipboardStatus( 'Clipboard access is unavailable. Use a secure browser context to copy images.', true );
+			statusFeedback.show( 'Clipboard access is unavailable. Use a secure browser context to copy images.', { warning: true } );
 		}
 	}
 
 	function updateGallerySelection() {
 		for ( const [ entryId, tile ] of galleryTiles ) {
-			const isActive = entryId === activeEntry.value?.id;
-
-			tile.classList.toggle( 'gallery-tile--active', isActive );
+			tile.classList.toggle( 'gallery-tile--active', entryId === activeEntry.value?.id );
 		}
 	}
 
@@ -243,64 +253,21 @@ export default function setupClipboardResizeApp() {
 		elements.copyButton.disabled = !activeEntry.value || loader.value;
 	}
 
-	function setClipboardStatus( message, isWarning = false ) {
-		if ( !elements.clipboardStatus ) {
-			return;
-		}
-
-		window.clearTimeout( clipboardStatusTimeout );
-
-		elements.clipboardStatus.textContent = message;
-		elements.clipboardStatus.hidden = false;
-		elements.clipboardStatus.classList.toggle( 'status-note--warning', isWarning );
-
-		clipboardStatusTimeout = window.setTimeout( () => {
-			clearClipboardStatus();
-		}, isWarning ? 5000 : 2600 );
-	}
-
-	function clearClipboardStatus() {
-		if ( !elements.clipboardStatus ) {
-			return;
-		}
-
-		window.clearTimeout( clipboardStatusTimeout );
-		elements.clipboardStatus.hidden = true;
-		elements.clipboardStatus.textContent = '';
-		elements.clipboardStatus.classList.remove( 'status-note--warning' );
-	}
-
-	function showCopySuccessFeedback() {
-		window.clearTimeout( copyFeedbackTimeout );
-		elements.copyButton.classList.add( 'action-button--success' );
-
-		copyFeedbackTimeout = window.setTimeout( () => {
-			elements.copyButton.classList.remove( 'action-button--success' );
-		}, 1600 );
-	}
-
 	function createGalleryItem( entry, { prepend = true } = {} ) {
 		if ( entries.has( entry.id ) ) {
 			return;
 		}
 
-		const galleryContent = elements.galleryTemplate.content.cloneNode( true );
-		const galleryTile = galleryContent.querySelector( '.js-gallery-tile' );
-		const galleryRemove = galleryTile.querySelector( '.js-gallery-remove' );
-		const galleryPreview = galleryTile.querySelector( '.js-gallery-preview' );
-		const galleryPreviewMeta = galleryTile.querySelector( '.js-gallery-preview-meta' );
-
-		galleryTile.dataset.entryId = entry.id;
-		galleryPreview.style.backgroundImage = `linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.55)), url(${ entry.sourceUrl })`;
-		galleryPreviewMeta.textContent = `${ entry.image.width } x ${ entry.image.height }`;
-
-		galleryPreview.addEventListener( 'click', async () => {
-			setActiveEntry( entry.id );
-			await copyActiveImage();
-		} );
-
-		galleryRemove.addEventListener( 'click', async () => {
-			await removeEntry( entry.id );
+		const galleryTile = createGalleryTile( {
+			entry,
+			template: elements.galleryTemplate,
+			onRemove: entryId => {
+				void removeEntry( entryId );
+			},
+			onSelect: entryId => {
+				setActiveEntry( entryId );
+				void copyActiveImage();
+			},
 		} );
 
 		entries.set( entry.id, entry );
@@ -313,7 +280,7 @@ export default function setupClipboardResizeApp() {
 		}
 	}
 
-	async function removeEntry( entryId, { persist = true, announce = true } = {} ) {
+	async function removeEntry( entryId, { persist = true } = {} ) {
 		const entry = entries.get( entryId );
 
 		if ( !entry ) {
@@ -330,17 +297,12 @@ export default function setupClipboardResizeApp() {
 				await removeSavedScreenshot( entryId );
 			} catch ( error ) {
 				console.error( error );
-
-				if ( announce ) {
-					setClipboardStatus( 'Could not update the saved screenshots for this browser.', true );
-				}
+				statusFeedback.show( 'Could not update the saved screenshots for this browser.', { warning: true } );
 			}
 		}
 
 		if ( activeEntry.value?.id === entryId ) {
-			const fallbackEntry = getFirstEntry();
-
-			setActiveEntry( fallbackEntry?.id || null );
+			setActiveEntry( getFirstEntry()?.id || null );
 		}
 	}
 
@@ -353,118 +315,4 @@ export default function setupClipboardResizeApp() {
 
 		return entries.get( firstTile.dataset.entryId ) || null;
 	}
-}
-
-function toCanvasDimension( value ) {
-	const number = Number( value );
-
-	if ( Number.isNaN( number ) || number < 1 ) {
-		return 1;
-	}
-
-	return Math.round( number );
-}
-
-function isImage( file ) {
-	if ( !file ) {
-		return false;
-	}
-
-	return SUPPORTED_MIME_TYPES.has( file.type );
-}
-
-function readPersistedActiveCaptureId() {
-	try {
-		return window.localStorage.getItem( ACTIVE_CAPTURE_STORAGE_KEY );
-	} catch ( error ) {
-		return null;
-	}
-}
-
-function persistActiveCaptureId( entryId ) {
-	try {
-		if ( entryId ) {
-			window.localStorage.setItem( ACTIVE_CAPTURE_STORAGE_KEY, entryId );
-		} else {
-			window.localStorage.removeItem( ACTIVE_CAPTURE_STORAGE_KEY );
-		}
-	} catch ( error ) {
-		// Ignore storage failures and keep the current session working.
-	}
-}
-
-async function createImageEntry( file ) {
-	const sourceUrl = URL.createObjectURL( file );
-
-	try {
-		const image = await loadImage( sourceUrl );
-
-		return {
-			blob: file,
-			createdAt: Date.now(),
-			id: `u${ crypto.randomUUID() }`,
-			image,
-			lastViewedAt: Date.now(),
-			objectUrl: sourceUrl,
-			sourceUrl,
-		};
-	} catch ( error ) {
-		URL.revokeObjectURL( sourceUrl );
-		throw error;
-	}
-}
-
-async function createImageEntryFromRecord( record ) {
-	const sourceUrl = URL.createObjectURL( record.blob );
-
-	try {
-		const image = await loadImage( sourceUrl );
-
-		return {
-			blob: record.blob,
-			createdAt: record.createdAt,
-			id: record.id,
-			image,
-			lastViewedAt: record.lastViewedAt || record.createdAt,
-			objectUrl: sourceUrl,
-			sourceUrl,
-		};
-	} catch ( error ) {
-		URL.revokeObjectURL( sourceUrl );
-		throw error;
-	}
-}
-
-function createStoredScreenshot( entry ) {
-	return {
-		blob: entry.blob,
-		createdAt: entry.createdAt,
-		height: entry.image.height,
-		id: entry.id,
-		lastViewedAt: entry.lastViewedAt,
-		mimeType: entry.blob.type,
-		width: entry.image.width,
-	};
-}
-
-function cleanupEntryResources( entry ) {
-	if ( entry?.objectUrl ) {
-		URL.revokeObjectURL( entry.objectUrl );
-	}
-}
-
-function loadImage( sourceUrl ) {
-	return new Promise( ( resolve, reject ) => {
-		const image = new Image();
-
-		image.addEventListener( 'load', () => {
-			resolve( image );
-		} );
-
-		image.addEventListener( 'error', () => {
-			reject( new Error( 'Could not load the pasted image.' ) );
-		} );
-
-		image.src = sourceUrl;
-	} );
 }
