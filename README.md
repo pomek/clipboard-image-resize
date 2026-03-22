@@ -22,10 +22,12 @@ Open the local Vite URL, paste a screenshot, pick a scale, and use the copy butt
 ## Scripts
 
 - `pnpm dev` - start the Vite dev server
+- `pnpm dev:test` - start the dedicated Playwright dev server
 - `pnpm build` - create a production build in `dist/`
 - `pnpm preview` - preview the production build locally
 - `pnpm test` - run Vitest unit tests
 - `pnpm test:e2e` - run Playwright end-to-end tests
+- `pnpm test:e2e:ui` - open Playwright's interactive UI runner
 - `pnpm test:coverage` - run unit tests with coverage
 - `pnpm gh-pages-deploy` - build and deploy to `gh-pages`
 

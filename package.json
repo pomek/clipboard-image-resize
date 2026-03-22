@@ -15,11 +15,12 @@
   },
   "scripts": {
     "dev": "vite",
-    "start": "vite",
+    "dev:test": "vite --port 4269 --strictPort",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "gh-pages-deploy": "node scripts/gh-pages-deploy.js"
